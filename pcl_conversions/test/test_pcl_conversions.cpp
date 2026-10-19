@@ -3,8 +3,57 @@
 #include "gtest/gtest.h"
 
 #include "pcl_conversions/pcl_conversions.h"
+#include "pcl_conversions/point_cloud2_view.hpp"
 
 namespace {
+
+TEST(PointCloud2View, SharesXYZAndRetainsPointStride) {
+  pcl::PointCloud<pcl::PointXYZI> input(6, 2);
+  for (auto & point : input) {
+    point.x = 1; point.y = 2; point.z = 3; point.intensity = 4;
+  }
+  sensor_msgs::msg::PointCloud2 message;
+  pcl::toROSMsg(input, message);
+  auto view = pcl_conversions::getXYZMatrixXfMap(message);
+  EXPECT_EQ(3, view.rows());
+  EXPECT_EQ(12, view.cols());
+  EXPECT_EQ(message.point_step / sizeof(float), view.outerStride());
+  EXPECT_EQ(message.data.data(), reinterpret_cast<const std::uint8_t *>(view.data()));
+  EXPECT_FLOAT_EQ(1, view(0, 5));
+  EXPECT_FLOAT_EQ(2, view(1, 5));
+  EXPECT_FLOAT_EQ(3, view(2, 5));
+  float x = 42;
+  std::memcpy(message.data.data(), &x, sizeof(x));
+  EXPECT_FLOAT_EQ(42, view(0, 0));
+}
+
+TEST(PointCloud2View, RejectsLayoutsThatRequireConversion) {
+  pcl::PointCloud<pcl::PointXYZRGB> input(3, 1);
+  sensor_msgs::msg::PointCloud2 message;
+  pcl::toROSMsg(input, message);
+  auto original = message;
+  message.is_bigendian = !message.is_bigendian;
+  EXPECT_THROW(pcl_conversions::getXYZMatrixXfMap(message), std::invalid_argument);
+  message = original;
+  ++message.row_step;
+  EXPECT_THROW(pcl_conversions::getXYZMatrixXfMap(message), std::invalid_argument);
+  message = original;
+  message.fields[1].offset += 4;
+  EXPECT_THROW(pcl_conversions::getXYZMatrixXfMap(message), std::invalid_argument);
+  message = original;
+  message.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT64;
+  EXPECT_THROW(pcl_conversions::getXYZMatrixXfMap(message), std::invalid_argument);
+  message = original;
+  message.data.clear();
+  EXPECT_THROW(pcl_conversions::getXYZMatrixXfMap(message), std::invalid_argument);
+}
+
+TEST(PointCloud2View, EmptyCloud) {
+  pcl::PointCloud<pcl::PointXYZI> input;
+  sensor_msgs::msg::PointCloud2 message;
+  pcl::toROSMsg(input, message);
+  EXPECT_EQ(0, pcl_conversions::getXYZMatrixXfMap(message).cols());
+}
 
 class PCLConversionTests : public ::testing::Test {
 protected:
