@@ -46,6 +46,10 @@ if(BUILD_TESTING)
     ${dependencies}
   )
   target_link_libraries(${PROJECT_NAME}-test ${Boost_LIBRARIES} ${PCL_LIBRARIES})
+
+  ament_add_gtest(${PROJECT_NAME}-type-adapter-test test/test_pcl_type_adapter.cpp)
+  ament_target_dependencies(${PROJECT_NAME}-type-adapter-test ${dependencies})
+  target_link_libraries(${PROJECT_NAME}-type-adapter-test ${Boost_LIBRARIES} ${PCL_LIBRARIES})
 endif()
 
 # Export old-style CMake variables
